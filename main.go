@@ -71,6 +71,7 @@ func main() {
 	go AgeOut()
 	go PrintStats()
 	go handleIncoming(ch, och)
+	go handleIncoming(ch, och)
 	go handleOutgoing(cl, outputuri, och)
 	go handleOutgoing(cl, outputuri, och)
 	go handleOutgoing(cl, outputuri, och)
@@ -121,7 +122,11 @@ func handleIncoming(ch chan *bw2bind.SimpleMessage, out chan Forward) {
 		k := Key{src: im.Srcmac, hash: murmur.Murmur3(im.Payload)}
 
 		if !CheckInsertDup(k, im.Payload) {
-			out <- Forward{po: po, src: im.Srcmac}
+            select {
+			 case out <- Forward{po: po, src: im.Srcmac}:
+             default:
+               fmt.Println("Dropping, cannot keep up")
+            }
 		} else {
 			atomic.AddUint64(&c_dup, 1)
 		}
