@@ -3,13 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/immesys/bw2bind"
-	"github.com/immesys/spawnpoint/spawnable"
 	murmur "github.com/zhangxinngang/murmur"
 )
 
@@ -49,29 +50,38 @@ var c_forwarded uint64
 func main() {
 	cl := bw2bind.ConnectOrExit("")
 	cl.SetEntityFromEnvironOrExit()
-	params := spawnable.GetParamsOrExit()
-	listenuri := params.MustString("listenuri")
-	if !strings.HasSuffix(listenuri, "/") {
-		listenuri += "/"
+	if len(os.Args) != 3 {
+		fmt.Printf("Format: hkdedupd <prefix> <customer>:<brz>")
+		os.Exit(1)
 	}
-	outputuri := params.MustString("outputuri")
-	if !strings.HasSuffix(outputuri, "/") {
-		outputuri += "/"
-	}
-	ch := cl.SubscribeOrExit(&bw2bind.SubscribeParams{
-		AutoChain: true,
-		URI:       listenuri + "*/s.hamilton/+/i.l7g/signal/raw",
-	})
-
+	prefix := os.Args[1]
+	customerbrz := strings.Split(os.Args[2], ":")
+	customer := customerbrz[0]
+	brz := customerbrz[1]
+	brarr := strings.Split(brz, ",")
 	epochs = make([]map[Key][]byte, NumEpochs)
 	for i := 0; i < NumEpochs; i++ {
 		epochs[i] = make(map[Key][]byte)
 	}
-	och := make(chan Forward, 10)
+	och := make(chan Forward, 1000)
 	go AgeOut()
 	go PrintStats()
-	go handleIncoming(ch, och)
-	go handleIncoming(ch, och)
+	outputuri := path.Join(prefix, "sensors", customer)
+	if !strings.HasSuffix(outputuri, "/") {
+		outputuri += "/"
+	}
+
+	for _, b := range brarr {
+		listenuri := path.Join(prefix, b)
+		if !strings.HasSuffix(listenuri, "/") {
+			listenuri += "/"
+		}
+		ch := cl.SubscribeOrExit(&bw2bind.SubscribeParams{
+			AutoChain: true,
+			URI:       listenuri + "*/s.hamilton/+/i.l7g/signal/raw",
+		})
+		go handleIncoming(ch, och)
+	}
 	go handleOutgoing(cl, outputuri, och)
 	go handleOutgoing(cl, outputuri, och)
 	go handleOutgoing(cl, outputuri, och)
@@ -122,11 +132,11 @@ func handleIncoming(ch chan *bw2bind.SimpleMessage, out chan Forward) {
 		k := Key{src: im.Srcmac, hash: murmur.Murmur3(im.Payload)}
 
 		if !CheckInsertDup(k, im.Payload) {
-            select {
-			 case out <- Forward{po: po, src: im.Srcmac}:
-             default:
-               fmt.Println("Dropping, cannot keep up")
-            }
+			select {
+			case out <- Forward{po: po, src: im.Srcmac}:
+			default:
+				fmt.Println("Dropping, cannot keep up")
+			}
 		} else {
 			atomic.AddUint64(&c_dup, 1)
 		}
