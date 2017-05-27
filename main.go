@@ -66,7 +66,7 @@ func main() {
 	och := make(chan Forward, 1000)
 	go AgeOut()
 	go PrintStats()
-	outputuri := path.Join(prefix, "sensors", customer)
+	outputuri := path.Join(prefix, "dedup", customer)
 	if !strings.HasSuffix(outputuri, "/") {
 		outputuri += "/"
 	}
