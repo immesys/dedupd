@@ -18,7 +18,6 @@ const NumEpochs = 3
 const EpochInterval = 20 * time.Second
 
 type Key struct {
-	src  string
 	hash uint32
 }
 
@@ -129,7 +128,7 @@ func handleIncoming(ch chan *bw2bind.SimpleMessage, out chan Forward) {
 		atomic.AddUint64(&c_recv, 1)
 		im := message{}
 		po.(bw2bind.MsgPackPayloadObject).ValueInto(&im)
-		k := Key{src: im.Srcmac, hash: murmur.Murmur3(im.Payload)}
+		k := Key{hash: murmur.Murmur3(im.Payload)}
 
 		if !CheckInsertDup(k, im.Payload) {
 			select {
