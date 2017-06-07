@@ -75,9 +75,11 @@ func main() {
 		if !strings.HasSuffix(listenuri, "/") {
 			listenuri += "/"
 		}
+		uri := listenuri + "*/s.hamilton/+/i.l7g/signal/raw"
+		fmt.Printf("subscribing to %q\n", uri)
 		ch := cl.SubscribeOrExit(&bw2bind.SubscribeParams{
 			AutoChain: true,
-			URI:       listenuri + "*/s.hamilton/+/i.l7g/signal/raw",
+			URI:       uri,
 		})
 		go handleIncoming(ch, och)
 	}
