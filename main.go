@@ -3,13 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/immesys/bw2bind"
-	"github.com/immesys/spawnpoint/spawnable"
 	murmur "github.com/zhangxinngang/murmur"
 )
 
@@ -17,7 +18,6 @@ const NumEpochs = 3
 const EpochInterval = 20 * time.Second
 
 type Key struct {
-	src  string
 	hash uint32
 }
 
@@ -67,7 +67,7 @@ func main() {
 	for i := 0; i < NumEpochs; i++ {
 		epochs[i] = make(map[Key][]byte)
 	}
-	och := make(chan Forward, 10)
+	och := make(chan Forward, 1000)
 	go AgeOut()
 	go PrintStats()
 	go handleIncoming(ch, och)
@@ -119,14 +119,14 @@ func handleIncoming(ch chan *bw2bind.SimpleMessage, out chan Forward) {
 		atomic.AddUint64(&c_recv, 1)
 		im := message{}
 		po.(bw2bind.MsgPackPayloadObject).ValueInto(&im)
-		k := Key{src: im.Srcmac, hash: murmur.Murmur3(im.Payload)}
+		k := Key{hash: murmur.Murmur3(im.Payload)}
 
 		if !CheckInsertDup(k, im.Payload) {
-            select {
-			 case out <- Forward{po: po, src: im.Srcmac}:
-             default:
-               fmt.Println("Dropping, cannot keep up")
-            }
+			select {
+			case out <- Forward{po: po, src: im.Srcmac}:
+			default:
+				fmt.Println("Dropping, cannot keep up")
+			}
 		} else {
 			atomic.AddUint64(&c_dup, 1)
 		}
